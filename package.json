@@ -1,0 +1,17 @@
+{
+  "name": "evmtools",
+  "version": "1.0.0",
+  "description": "EVM blockchain tools for token transfer monitoring",
+  "main": "index.js",
+  "scripts": {
+    "start": "node token-monitor.js",
+    "dev": "node token-monitor.js"
+  },
+  "keywords": ["ethereum", "evm", "blockchain", "token", "monitoring"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.7.1",
+    "dotenv": "^16.3.1"
+  }
+}
