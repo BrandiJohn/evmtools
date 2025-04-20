@@ -53,6 +53,38 @@ npm start
 npm run dev
 ```
 
+## 使用示例
+
+### 示例1：监听特定地址的所有USDT发送交易
+```bash
+# .env 配置
+RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+TOKEN_CONTRACT_ADDRESS=0xdAC17F958D2ee523a2206206994597C13D831ec7
+WATCH_ADDRESS=0x1234567890123456789012345678901234567890
+MONITOR_OUTGOING_ONLY=true
+MIN_AMOUNT_THRESHOLD=100
+```
+
+### 示例2：监听特定地址的ETH和代币接收
+```bash  
+# .env 配置
+RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+TOKEN_CONTRACT_ADDRESS=0xA0b86a33E6441b4b6F44863a8a1d9B08d88a1f52
+WATCH_ADDRESS=0x1234567890123456789012345678901234567890
+MONITOR_INCOMING_ONLY=true
+MONITOR_ETH_TRANSFERS=true
+MIN_ETH_THRESHOLD=0.1
+```
+
+### 示例3：监听所有USDC转账（无地址限制）
+```bash
+# .env 配置
+RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+TOKEN_CONTRACT_ADDRESS=0xA0b86a33E6441b4b6F44863a8a1d9B08d88a1f52
+# WATCH_ADDRESS 留空
+MIN_AMOUNT_THRESHOLD=1000
+```
+
 ## 配置说明
 
 ### RPC_URL 示例
@@ -67,21 +99,39 @@ npm run dev
 
 ## 输出信息
 
-监听到转账时，会显示：
-- 转账时间
-- 发送方地址
-- 接收方地址  
-- 转账数量
-- 交易哈希
-- 区块号
-- Gas 使用量
+### 代币转账输出示例
+```
+📤 检测到发送代币:
+   时间: 2024/1/15 下午3:45:30
+   从: 0x1234567890123456789012345678901234567890
+   到: 0x0987654321098765432109876543210987654321
+   数量: 1000.0 tokens
+   交易哈希: 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890
+   区块号: 18850000
+   Gas 价格: 25.5 Gwei
+   Gas 使用: 65000
+```
+
+### ETH转账输出示例
+```
+📥 检测到接收ETH:
+   时间: 2024/1/15 下午3:46:12
+   从: 0x0987654321098765432109876543210987654321
+   到: 0x1234567890123456789012345678901234567890
+   数量: 0.5 ETH
+   交易哈希: 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+   Gas 价格: 23.2 Gwei
+   Gas 限制: 21000
+```
 
 ## 注意事项
 
 - 确保RPC节点稳定可用
 - 某些RPC节点可能有请求限制
 - 大量转账的代币可能产生大量日志输出
+- ETH转账监听会消耗更多RPC请求（每个区块都要检查）
 - 建议在生产环境中添加日志文件和错误处理
+- 使用MONITOR_OUTGOING_ONLY可以减少不必要的事件处理
 
 ## 扩展功能
 
