@@ -74,11 +74,21 @@ class TokenMonitor {
         // 如果指定了特定地址，添加过滤条件
         if (process.env.WATCH_ADDRESS) {
             console.log(`👀 专门监听地址: ${process.env.WATCH_ADDRESS}`);
-            // 监听该地址作为发送方或接收方的转账
-            filter = [
-                this.contract.filters.Transfer(process.env.WATCH_ADDRESS, null),
-                this.contract.filters.Transfer(null, process.env.WATCH_ADDRESS)
-            ];
+            
+            if (process.env.MONITOR_OUTGOING_ONLY === 'true') {
+                console.log('📤 只监听发送交易');
+                filter = this.contract.filters.Transfer(process.env.WATCH_ADDRESS, null);
+            } else if (process.env.MONITOR_INCOMING_ONLY === 'true') {
+                console.log('📥 只监听接收交易');
+                filter = this.contract.filters.Transfer(null, process.env.WATCH_ADDRESS);
+            } else {
+                console.log('🔄 监听发送和接收交易');
+                // 监听该地址作为发送方或接收方的转账
+                filter = [
+                    this.contract.filters.Transfer(process.env.WATCH_ADDRESS, null),
+                    this.contract.filters.Transfer(null, process.env.WATCH_ADDRESS)
+                ];
+            }
         }
 
         // 监听新的Transfer事件
@@ -96,6 +106,11 @@ class TokenMonitor {
         this.contract.on('error', (error) => {
             console.error('❌ 监听错误:', error);
         });
+
+        // 如果启用ETH转账监控
+        if (process.env.MONITOR_ETH_TRANSFERS === 'true' && process.env.WATCH_ADDRESS) {
+            await this.startEthMonitoring();
+        }
 
         console.log('✅ 监听已启动，等待转账事件...');
         console.log('按 Ctrl+C 停止监听\n');
@@ -121,13 +136,29 @@ class TokenMonitor {
             // 获取当前时间
             const timestamp = new Date().toLocaleString();
             
-            console.log('🔄 检测到代币转移:');
+            // 判断交易类型
+            const isOutgoing = process.env.WATCH_ADDRESS && from.toLowerCase() === process.env.WATCH_ADDRESS.toLowerCase();
+            const isIncoming = process.env.WATCH_ADDRESS && to.toLowerCase() === process.env.WATCH_ADDRESS.toLowerCase();
+            
+            let transactionType = '🔄';
+            let typeText = '代币转移';
+            
+            if (isOutgoing) {
+                transactionType = '📤';
+                typeText = '发送代币';
+            } else if (isIncoming) {
+                transactionType = '📥';
+                typeText = '接收代币';
+            }
+            
+            console.log(`${transactionType} 检测到${typeText}:`);
             console.log(`   时间: ${timestamp}`);
             console.log(`   从: ${from}`);
             console.log(`   到: ${to}`);
             console.log(`   数量: ${formattedValue} tokens`);
             console.log(`   交易哈希: ${tx.hash}`);
             console.log(`   区块号: ${receipt.blockNumber}`);
+            console.log(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
             console.log(`   Gas 使用: ${receipt.gasUsed.toString()}`);
             console.log('   ' + '─'.repeat(50));
             
@@ -169,11 +200,82 @@ class TokenMonitor {
         }
     }
 
+    async startEthMonitoring() {
+        if (this.ethMonitoring) {
+            return;
+        }
+
+        this.ethMonitoring = true;
+        console.log('💰 启动ETH转账监听...');
+        
+        // 监听新区块
+        this.provider.on('block', async (blockNumber) => {
+            try {
+                const block = await this.provider.getBlock(blockNumber, true);
+                if (!block || !block.transactions) return;
+
+                // 检查区块中的交易
+                for (const tx of block.transactions) {
+                    if (typeof tx === 'string') continue;
+                    
+                    // 检查是否涉及监听地址
+                    const watchAddress = process.env.WATCH_ADDRESS.toLowerCase();
+                    const isOutgoing = tx.from && tx.from.toLowerCase() === watchAddress;
+                    const isIncoming = tx.to && tx.to.toLowerCase() === watchAddress;
+                    
+                    if (isOutgoing || isIncoming) {
+                        // 只监听普通ETH转账 (不是合约调用)
+                        if (tx.data === '0x' && tx.value && tx.value > 0) {
+                            await this.handleEthTransfer(tx, isOutgoing);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('❌ ETH转账监听错误:', error.message);
+            }
+        });
+    }
+
+    async handleEthTransfer(tx, isOutgoing) {
+        try {
+            const ethAmount = ethers.formatEther(tx.value);
+            
+            // 检查最小金额阈值
+            if (process.env.MIN_ETH_THRESHOLD) {
+                const threshold = parseFloat(process.env.MIN_ETH_THRESHOLD);
+                if (parseFloat(ethAmount) < threshold) {
+                    return;
+                }
+            }
+
+            const timestamp = new Date().toLocaleString();
+            const transactionType = isOutgoing ? '📤' : '📥';
+            const typeText = isOutgoing ? '发送ETH' : '接收ETH';
+
+            console.log(`${transactionType} 检测到${typeText}:`);
+            console.log(`   时间: ${timestamp}`);
+            console.log(`   从: ${tx.from}`);
+            console.log(`   到: ${tx.to}`);
+            console.log(`   数量: ${ethAmount} ETH`);
+            console.log(`   交易哈希: ${tx.hash}`);
+            console.log(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
+            console.log(`   Gas 限制: ${tx.gasLimit ? tx.gasLimit.toString() : 'N/A'}`);
+            console.log('   ' + '─'.repeat(50));
+
+        } catch (error) {
+            console.error('❌ 处理ETH转账时出错:', error.message);
+        }
+    }
+
     stop() {
         if (this.contract) {
             this.contract.removeAllListeners();
         }
+        if (this.provider && this.ethMonitoring) {
+            this.provider.removeAllListeners('block');
+        }
         this.isMonitoring = false;
+        this.ethMonitoring = false;
         console.log('⏹️ 监听已停止');
     }
 }

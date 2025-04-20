@@ -4,11 +4,14 @@
 
 ## 功能特性
 
-- 🔄 实时监听代币转移事件
+- 🔄 实时监听ERC-20代币转移事件
+- 💰 支持监听ETH原生转账
+- 📤 专门监听某个地址的发送交易
+- 📥 专门监听某个地址的接收交易
 - 📊 查询历史转账记录  
 - 🎯 支持监听特定地址
 - 💰 支持设置最小金额阈值
-- 🔍 显示详细的交易信息
+- 🔍 显示详细的交易信息（Gas价格、区块号等）
 
 ## 安装和配置
 
@@ -23,10 +26,20 @@ cp .env.example .env
 ```
 
 3. 编辑 `.env` 文件，设置以下参数：
-   - `RPC_URL`: RPC节点URL (如 Infura、Alchemy)
-   - `TOKEN_CONTRACT_ADDRESS`: 要监听的代币合约地址
-   - `WATCH_ADDRESS`: (可选) 特定监听地址
-   - `MIN_AMOUNT_THRESHOLD`: (可选) 最小转账金额阈值
+
+### 基础配置
+- `RPC_URL`: RPC节点URL (如 Infura、Alchemy)
+- `TOKEN_CONTRACT_ADDRESS`: 要监听的代币合约地址
+- `WATCH_ADDRESS`: (可选) 特定监听地址
+
+### 监听模式配置
+- `MONITOR_OUTGOING_ONLY`: 只监听发送交易 (true/false)
+- `MONITOR_INCOMING_ONLY`: 只监听接收交易 (true/false)  
+- `MONITOR_ETH_TRANSFERS`: 是否同时监听ETH转账 (true/false)
+
+### 金额阈值配置
+- `MIN_AMOUNT_THRESHOLD`: 最小代币转账金额阈值
+- `MIN_ETH_THRESHOLD`: 最小ETH转账金额阈值
 
 ## 使用方法
 
