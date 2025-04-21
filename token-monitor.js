@@ -1,10 +1,73 @@
 require('dotenv').config();
 const { ethers } = require('ethers');
+const winston = require('winston');
+const path = require('path');
 
 // ERC-20 代币标准ABI (只需要Transfer事件)
 const ERC20_ABI = [
     "event Transfer(address indexed from, address indexed to, uint256 value)"
 ];
+
+// 配置日志系统
+const createLogger = () => {
+    const logDir = process.env.LOG_DIR || './logs';
+    const logLevel = process.env.LOG_LEVEL || 'info';
+    const enableFileLogging = process.env.ENABLE_FILE_LOGGING === 'true';
+    
+    const transports = [
+        new winston.transports.Console({
+            format: winston.format.combine(
+                winston.format.colorize(),
+                winston.format.simple()
+            )
+        })
+    ];
+
+    if (enableFileLogging) {
+        // 确保日志目录存在
+        const fs = require('fs');
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+
+        // 添加文件日志传输器
+        transports.push(
+            // 所有日志
+            new winston.transports.File({
+                filename: path.join(logDir, 'all.log'),
+                format: winston.format.combine(
+                    winston.format.timestamp(),
+                    winston.format.json()
+                )
+            }),
+            // 错误日志
+            new winston.transports.File({
+                filename: path.join(logDir, 'error.log'),
+                level: 'error',
+                format: winston.format.combine(
+                    winston.format.timestamp(),
+                    winston.format.json()
+                )
+            }),
+            // 交易日志
+            new winston.transports.File({
+                filename: path.join(logDir, 'transactions.log'),
+                level: 'info',
+                format: winston.format.combine(
+                    winston.format.timestamp(),
+                    winston.format.json()
+                )
+            })
+        );
+    }
+
+    return winston.createLogger({
+        level: logLevel,
+        transports: transports
+    });
+};
+
+const logger = createLogger();
 
 class TokenMonitor {
     constructor() {
@@ -20,7 +83,7 @@ class TokenMonitor {
             
             // 测试连接
             const network = await this.provider.getNetwork();
-            console.log(`✅ 已连接到网络: ${network.name} (Chain ID: ${network.chainId})`);
+            logger.info(`✅ 已连接到网络: ${network.name} (Chain ID: ${network.chainId})`);
             
             // 创建合约实例
             if (!process.env.TOKEN_CONTRACT_ADDRESS) {
@@ -33,13 +96,13 @@ class TokenMonitor {
                 this.provider
             );
             
-            console.log(`📄 监听合约地址: ${process.env.TOKEN_CONTRACT_ADDRESS}`);
+            logger.info(`📄 监听合约地址: ${process.env.TOKEN_CONTRACT_ADDRESS}`);
             
             // 获取代币基本信息
             await this.getTokenInfo();
             
         } catch (error) {
-            console.error('❌ 初始化失败:', error.message);
+            logger.error('❌ 初始化失败:', { error: error.message, stack: error.stack });
             process.exit(1);
         }
     }
@@ -49,40 +112,40 @@ class TokenMonitor {
             // 尝试获取代币信息 (某些代币可能没有这些函数)
             const code = await this.provider.getCode(process.env.TOKEN_CONTRACT_ADDRESS);
             if (code === '0x') {
-                console.warn('⚠️ 警告: 指定地址不是合约地址');
+                logger.warn('⚠️ 警告: 指定地址不是合约地址');
                 return;
             }
             
-            console.log('🔍 代币合约验证成功');
+            logger.info('🔍 代币合约验证成功');
         } catch (error) {
-            console.warn('⚠️ 无法获取代币详细信息:', error.message);
+            logger.warn('⚠️ 无法获取代币详细信息:', { error: error.message });
         }
     }
 
     async startMonitoring() {
         if (this.isMonitoring) {
-            console.log('📡 监听已在运行中...');
+            logger.info('📡 监听已在运行中...');
             return;
         }
 
         this.isMonitoring = true;
-        console.log('🚀 开始监听代币转移事件...');
+        logger.info('🚀 开始监听代币转移事件...');
         
         // 设置事件过滤器
         let filter = this.contract.filters.Transfer();
         
         // 如果指定了特定地址，添加过滤条件
         if (process.env.WATCH_ADDRESS) {
-            console.log(`👀 专门监听地址: ${process.env.WATCH_ADDRESS}`);
+            logger.info(`👀 专门监听地址: ${process.env.WATCH_ADDRESS}`);
             
             if (process.env.MONITOR_OUTGOING_ONLY === 'true') {
-                console.log('📤 只监听发送交易');
+                logger.info('📤 只监听发送交易');
                 filter = this.contract.filters.Transfer(process.env.WATCH_ADDRESS, null);
             } else if (process.env.MONITOR_INCOMING_ONLY === 'true') {
-                console.log('📥 只监听接收交易');
+                logger.info('📥 只监听接收交易');
                 filter = this.contract.filters.Transfer(null, process.env.WATCH_ADDRESS);
             } else {
-                console.log('🔄 监听发送和接收交易');
+                logger.info('🔄 监听发送和接收交易');
                 // 监听该地址作为发送方或接收方的转账
                 filter = [
                     this.contract.filters.Transfer(process.env.WATCH_ADDRESS, null),
@@ -104,7 +167,7 @@ class TokenMonitor {
 
         // 监听错误
         this.contract.on('error', (error) => {
-            console.error('❌ 监听错误:', error);
+            logger.error('❌ 监听错误:', { error: error.message, stack: error.stack });
         });
 
         // 如果启用ETH转账监控
@@ -112,8 +175,8 @@ class TokenMonitor {
             await this.startEthMonitoring();
         }
 
-        console.log('✅ 监听已启动，等待转账事件...');
-        console.log('按 Ctrl+C 停止监听\n');
+        logger.info('✅ 监听已启动，等待转账事件...');
+        logger.info('按 Ctrl+C 停止监听\n');
     }
 
     async handleTransfer(from, to, value, event) {
