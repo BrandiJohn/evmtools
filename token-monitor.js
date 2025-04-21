@@ -214,16 +214,48 @@ class TokenMonitor {
                 typeText = '接收代币';
             }
             
-            console.log(`${transactionType} 检测到${typeText}:`);
-            console.log(`   时间: ${timestamp}`);
-            console.log(`   从: ${from}`);
-            console.log(`   到: ${to}`);
-            console.log(`   数量: ${formattedValue} tokens`);
-            console.log(`   交易哈希: ${tx.hash}`);
-            console.log(`   区块号: ${receipt.blockNumber}`);
-            console.log(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
-            console.log(`   Gas 使用: ${receipt.gasUsed.toString()}`);
-            console.log('   ' + '─'.repeat(50));
+            // 构造交易信息对象
+            const transactionInfo = {
+                type: typeText,
+                timestamp: timestamp,
+                from: from,
+                to: to,
+                amount: formattedValue,
+                hash: tx.hash,
+                blockNumber: receipt.blockNumber.toString(),
+                gasPrice: ethers.formatUnits(tx.gasPrice || 0, 'gwei'),
+                gasUsed: receipt.gasUsed.toString(),
+                isOutgoing: isOutgoing,
+                isIncoming: isIncoming
+            };
+
+            // 控制台输出
+            logger.info(`${transactionType} 检测到${typeText}:`);
+            logger.info(`   时间: ${timestamp}`);
+            logger.info(`   从: ${from}`);
+            logger.info(`   到: ${to}`);
+            logger.info(`   数量: ${formattedValue} tokens`);
+            logger.info(`   交易哈希: ${tx.hash}`);
+            logger.info(`   区块号: ${receipt.blockNumber}`);
+            logger.info(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
+            logger.info(`   Gas 使用: ${receipt.gasUsed.toString()}`);
+            logger.info('   ' + '─'.repeat(50));
+
+            // 如果是发送交易，记录特殊日志
+            if (isOutgoing) {
+                logger.info('🚨 发送交易警报', {
+                    alert: 'OUTGOING_TRANSACTION',
+                    watchAddress: process.env.WATCH_ADDRESS,
+                    transaction: transactionInfo,
+                    network: (await this.provider.getNetwork()).name
+                });
+            }
+
+            // 记录到交易日志文件
+            logger.info('交易记录', {
+                category: 'TOKEN_TRANSFER', 
+                transaction: transactionInfo
+            });
             
             // 可以在这里添加更多处理逻辑，比如:
             // - 发送通知
@@ -231,18 +263,18 @@ class TokenMonitor {
             // - 触发其他操作
             
         } catch (error) {
-            console.error('❌ 处理转账事件时出错:', error.message);
+            logger.error('❌ 处理转账事件时出错:', { error: error.message, stack: error.stack });
         }
     }
 
     async getHistoricalTransfers(fromBlock = 'latest', toBlock = 'latest', limit = 10) {
         try {
-            console.log(`🔍 查询历史转账记录 (从区块 ${fromBlock} 到 ${toBlock})...`);
+            logger.info(`🔍 查询历史转账记录 (从区块 ${fromBlock} 到 ${toBlock})...`);
             
             const filter = this.contract.filters.Transfer();
             const events = await this.contract.queryFilter(filter, fromBlock, toBlock);
             
-            console.log(`📊 找到 ${events.length} 条转账记录\n`);
+            logger.info(`📊 找到 ${events.length} 条转账记录\n`);
             
             // 显示最近的几条记录
             const recentEvents = events.slice(-limit);
@@ -251,15 +283,25 @@ class TokenMonitor {
                 const { from, to, value } = event.args;
                 const formattedValue = ethers.formatEther(value);
                 
-                console.log(`从: ${from}`);
-                console.log(`到: ${to}`);
-                console.log(`数量: ${formattedValue} tokens`);
-                console.log(`交易: ${event.transactionHash}`);
-                console.log(`区块: ${event.blockNumber}\n`);
+                logger.info(`从: ${from}`);
+                logger.info(`到: ${to}`);
+                logger.info(`数量: ${formattedValue} tokens`);
+                logger.info(`交易: ${event.transactionHash}`);
+                logger.info(`区块: ${event.blockNumber}\n`);
+                
+                // 记录历史交易
+                logger.info('历史交易记录', {
+                    category: 'HISTORICAL_TRANSFER',
+                    from: from,
+                    to: to,
+                    amount: formattedValue,
+                    hash: event.transactionHash,
+                    blockNumber: event.blockNumber
+                });
             }
             
         } catch (error) {
-            console.error('❌ 查询历史记录失败:', error.message);
+            logger.error('❌ 查询历史记录失败:', { error: error.message, stack: error.stack });
         }
     }
 
@@ -269,7 +311,7 @@ class TokenMonitor {
         }
 
         this.ethMonitoring = true;
-        console.log('💰 启动ETH转账监听...');
+        logger.info('💰 启动ETH转账监听...');
         
         // 监听新区块
         this.provider.on('block', async (blockNumber) => {
@@ -294,7 +336,7 @@ class TokenMonitor {
                     }
                 }
             } catch (error) {
-                console.error('❌ ETH转账监听错误:', error.message);
+                logger.error('❌ ETH转账监听错误:', { error: error.message, stack: error.stack });
             }
         });
     }
@@ -315,18 +357,48 @@ class TokenMonitor {
             const transactionType = isOutgoing ? '📤' : '📥';
             const typeText = isOutgoing ? '发送ETH' : '接收ETH';
 
-            console.log(`${transactionType} 检测到${typeText}:`);
-            console.log(`   时间: ${timestamp}`);
-            console.log(`   从: ${tx.from}`);
-            console.log(`   到: ${tx.to}`);
-            console.log(`   数量: ${ethAmount} ETH`);
-            console.log(`   交易哈希: ${tx.hash}`);
-            console.log(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
-            console.log(`   Gas 限制: ${tx.gasLimit ? tx.gasLimit.toString() : 'N/A'}`);
-            console.log('   ' + '─'.repeat(50));
+            // 构造ETH交易信息对象
+            const ethTransactionInfo = {
+                type: typeText,
+                timestamp: timestamp,
+                from: tx.from,
+                to: tx.to,
+                amount: ethAmount,
+                hash: tx.hash,
+                gasPrice: ethers.formatUnits(tx.gasPrice || 0, 'gwei'),
+                gasLimit: tx.gasLimit ? tx.gasLimit.toString() : 'N/A',
+                isOutgoing: isOutgoing
+            };
+
+            // 控制台输出
+            logger.info(`${transactionType} 检测到${typeText}:`);
+            logger.info(`   时间: ${timestamp}`);
+            logger.info(`   从: ${tx.from}`);
+            logger.info(`   到: ${tx.to}`);
+            logger.info(`   数量: ${ethAmount} ETH`);
+            logger.info(`   交易哈希: ${tx.hash}`);
+            logger.info(`   Gas 价格: ${ethers.formatUnits(tx.gasPrice || 0, 'gwei')} Gwei`);
+            logger.info(`   Gas 限制: ${tx.gasLimit ? tx.gasLimit.toString() : 'N/A'}`);
+            logger.info('   ' + '─'.repeat(50));
+
+            // 如果是发送ETH交易，记录特殊日志
+            if (isOutgoing) {
+                logger.info('🚨 ETH发送交易警报', {
+                    alert: 'OUTGOING_ETH_TRANSACTION',
+                    watchAddress: process.env.WATCH_ADDRESS,
+                    transaction: ethTransactionInfo,
+                    network: (await this.provider.getNetwork()).name
+                });
+            }
+
+            // 记录到交易日志文件
+            logger.info('ETH交易记录', {
+                category: 'ETH_TRANSFER',
+                transaction: ethTransactionInfo
+            });
 
         } catch (error) {
-            console.error('❌ 处理ETH转账时出错:', error.message);
+            logger.error('❌ 处理ETH转账时出错:', { error: error.message, stack: error.stack });
         }
     }
 
@@ -339,7 +411,7 @@ class TokenMonitor {
         }
         this.isMonitoring = false;
         this.ethMonitoring = false;
-        console.log('⏹️ 监听已停止');
+        logger.info('⏹️ 监听已停止');
     }
 }
 
@@ -349,7 +421,7 @@ async function main() {
     
     // 处理程序退出
     process.on('SIGINT', () => {
-        console.log('\n📴 正在停止监听...');
+        logger.info('\n📴 正在停止监听...');
         monitor.stop();
         process.exit(0);
     });
@@ -363,7 +435,7 @@ async function main() {
         await monitor.startMonitoring();
         
     } catch (error) {
-        console.error('❌ 程序运行失败:', error.message);
+        logger.error('❌ 程序运行失败:', { error: error.message, stack: error.stack });
         process.exit(1);
     }
 }
