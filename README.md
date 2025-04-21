@@ -12,6 +12,8 @@
 - 🎯 支持监听特定地址
 - 💰 支持设置最小金额阈值
 - 🔍 显示详细的交易信息（Gas价格、区块号等）
+- 📝 完整的日志系统（文件日志、分级日志、交易警报）
+- 🚨 发送交易特殊警报记录
 
 ## 安装和配置
 
@@ -40,6 +42,11 @@ cp .env.example .env
 ### 金额阈值配置
 - `MIN_AMOUNT_THRESHOLD`: 最小代币转账金额阈值
 - `MIN_ETH_THRESHOLD`: 最小ETH转账金额阈值
+
+### 日志配置
+- `ENABLE_FILE_LOGGING`: 是否启用文件日志 (true/false)
+- `LOG_DIR`: 日志文件目录路径 (默认: ./logs)
+- `LOG_LEVEL`: 日志级别 (error/warn/info/debug)
 
 ## 使用方法
 
@@ -83,6 +90,52 @@ RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
 TOKEN_CONTRACT_ADDRESS=0xA0b86a33E6441b4b6F44863a8a1d9B08d88a1f52
 # WATCH_ADDRESS 留空
 MIN_AMOUNT_THRESHOLD=1000
+```
+
+## 日志功能
+
+### 日志文件类型
+启用文件日志后，会在指定目录生成以下日志文件：
+
+- **`all.log`**: 所有日志记录（JSON格式）
+- **`error.log`**: 仅错误日志（JSON格式）  
+- **`transactions.log`**: 所有交易记录（JSON格式）
+
+### 发送交易特殊警报
+当监听到指定地址发送交易时，系统会记录特殊警报日志：
+
+```json
+{
+  "timestamp": "2024-01-15T15:45:30.123Z",
+  "level": "info", 
+  "message": "🚨 发送交易警报",
+  "alert": "OUTGOING_TRANSACTION",
+  "watchAddress": "0x1234567890123456789012345678901234567890",
+  "transaction": {
+    "type": "发送代币",
+    "from": "0x1234567890123456789012345678901234567890", 
+    "to": "0x0987654321098765432109876543210987654321",
+    "amount": "1000.0",
+    "hash": "0xabcdef...",
+    "blockNumber": "18850000",
+    "gasPrice": "25.5",
+    "gasUsed": "65000"
+  },
+  "network": "mainnet"
+}
+```
+
+### 日志配置示例
+```bash
+# 启用详细日志记录
+ENABLE_FILE_LOGGING=true
+LOG_DIR=./logs
+LOG_LEVEL=info
+
+# 生产环境建议配置
+ENABLE_FILE_LOGGING=true  
+LOG_DIR=/var/log/evmtools
+LOG_LEVEL=warn
 ```
 
 ## 配置说明
@@ -130,8 +183,9 @@ MIN_AMOUNT_THRESHOLD=1000
 - 某些RPC节点可能有请求限制
 - 大量转账的代币可能产生大量日志输出
 - ETH转账监听会消耗更多RPC请求（每个区块都要检查）
-- 建议在生产环境中添加日志文件和错误处理
+- 启用文件日志会占用磁盘空间，建议定期清理日志文件
 - 使用MONITOR_OUTGOING_ONLY可以减少不必要的事件处理
+- 生产环境建议设置LOG_LEVEL=warn以减少日志量
 
 ## 扩展功能
 
