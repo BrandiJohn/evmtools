@@ -202,3 +202,51 @@ LOG_LEVEL=warn
 2. TOKEN_CONTRACT_ADDRESS 是否为有效的ERC-20合约
 3. 网络连接是否稳定
 4. 是否有足够的API请求配额
+5. 日志目录是否有写入权限
+6. winston依赖是否正确安装
+
+## 完整使用示例
+
+### 1. 监听特定地址USDT发送交易并记录日志
+
+```bash
+# 1. 创建 .env 文件
+cp .env.example .env
+
+# 2. 编辑 .env 文件内容：
+RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+TOKEN_CONTRACT_ADDRESS=0xdAC17F958D2ee523a2206206994597C13D831ec7
+WATCH_ADDRESS=0x1234567890123456789012345678901234567890
+MONITOR_OUTGOING_ONLY=true
+ENABLE_FILE_LOGGING=true
+LOG_DIR=./logs
+LOG_LEVEL=info
+MIN_AMOUNT_THRESHOLD=100
+
+# 3. 安装依赖并启动
+npm install
+npm start
+```
+
+### 2. 查看日志文件
+
+```bash
+# 查看所有日志
+cat logs/all.log | tail -n 20
+
+# 查看交易日志
+cat logs/transactions.log | grep "OUTGOING_TRANSACTION"
+
+# 实时监控发送交易警报
+tail -f logs/transactions.log | grep "发送交易警报"
+```
+
+### 3. 日志分析示例
+
+```bash
+# 统计今天的发送交易数量
+grep "OUTGOING_TRANSACTION" logs/transactions.log | grep "$(date +%Y-%m-%d)" | wc -l
+
+# 查找大额转账 (>1000)
+grep -E '"amount":"[0-9]{4,}\.' logs/transactions.log
+```
